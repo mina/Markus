@@ -183,20 +183,16 @@ module AutomatedTestsHelper
     test.save
   end
 
-  #######################################################################
-  # TODO: EVERYTHING BELOW THIS POINT IS OLD AND NEEDED TO BE REWRITTEN #
-  #######################################################################
-
-  def add_test_file_link(name, form)
+  def add_test_script_link(name, form)
     link_to_function name do |page|
       test_file = render(:partial => 'test_file',
                          :locals => {:form => form,
                                      :test_file => TestFile.new,
-                                     :file_type => "test"})
+                                     :file_type => "testscript"})
       page << %{
         if ($F('is_testing_framework_enabled') != null) {
           var new_test_file_id = new Date().getTime();
-          $('test_files').insert({bottom: "#{ escape_javascript test_file }".replace(/(attributes_\\d+|\\[\\d+\\])/g, new_test_file_id) });
+          $('script_files').insert({bottom: "#{ escape_javascript test_file }".replace(/(attributes_\\d+|\\[\\d+\\])/g, new_test_file_id) });
           $('assignment_test_files_' + new_test_file_id + '_filename').focus();
         } else {
           alert("#{I18n.t("automated_tests.add_test_file_alert")}");
@@ -205,16 +201,16 @@ module AutomatedTestsHelper
     end
   end
 
-  def add_lib_file_link(name, form)
+  def add_test_file_link(name, form)
     link_to_function name do |page|
       test_file = render(:partial => 'test_file',
                          :locals => {:form => form,
                                      :test_file => TestFile.new,
-                                     :file_type => "lib"})
+                                     :file_type => "testfile"})
       page << %{
         if ($F('is_testing_framework_enabled') != null) {
           var new_test_file_id = new Date().getTime();
-          $('lib_files').insert({bottom: "#{ escape_javascript test_file }".replace(/(attributes_\\d+|\\[\\d+\\])/g, new_test_file_id) });
+          $('test_files').insert({bottom: "#{ escape_javascript test_file }".replace(/(attributes_\\d+|\\[\\d+\\])/g, new_test_file_id) });
           $('assignment_test_files_' + new_test_file_id + '_filename').focus();
         } else {
           alert("#{I18n.t("automated_tests.add_lib_file_alert")}");
@@ -223,49 +219,15 @@ module AutomatedTestsHelper
     end
   end
 
-  def add_parser_file_link(name, form)
-    link_to_function name do |page|
-      test_file = render(:partial => 'test_file',
-                         :locals => {:form => form,
-                                     :test_file => TestFile.new,
-                                     :file_type => "parse"})
-      page << %{
-        if ($F('is_testing_framework_enabled') != null) {
-          var new_test_file_id = new Date().getTime();
-          $('parser_files').insert({bottom: "#{ escape_javascript test_file }".replace(/(attributes_\\d+|\\[\\d+\\])/g, new_test_file_id) });
-          $('assignment_test_files_' + new_test_file_id + '_filename').focus();
-        } else {
-          alert("#{I18n.t("automated_tests.add_parser_file_alert")}");
-        }
-      }
-    end
+  #need to implement this
+  #this is called when a new test script file is added
+  def add_test_script_options(form)
+
+    #TODO
+
   end
 
-  def create_ant_test_files(assignment)
-    # Create required ant test files - build.xml and build.properties
-    if assignment && assignment.test_files.empty?
-      @ant_build_file = TestFile.new
-      @ant_build_file.assignment = assignment
-      @ant_build_file.filetype = 'build.xml'
-      @ant_build_file.filename = 'tempbuild.xml'        # temporary placeholder for now
-      @ant_build_file.save(:validate => false)
-
-      @ant_build_prop = TestFile.new
-      @ant_build_prop.assignment = assignment
-      @ant_build_prop.filetype = 'build.properties'
-      @ant_build_prop.filename = 'tempbuild.properties' # temporary placeholder for now
-      @ant_build_prop.save(:validate => false)
-
-      # Setup Testing Framework repository
-      test_dir = File.join(
-                  MarkusConfigurator.markus_config_automated_tests_repository,
-                  assignment.short_identifier)
-      FileUtils.makedirs(test_dir)
-
-      assignment.reload
-    end
-  end
-
+  # NEEDS TO BE UPDATES
   # Process Testing Framework form
   # - Process new and updated test files (additional validation to be done at the model level)
   def process_test_form(assignment, params)
@@ -460,105 +422,4 @@ module AutomatedTestsHelper
     end
   end
 
-  # Execute Ant which will run the tests against the students' code
-  def run_ant_file(result, assignment, repo_dest_dir)
-    # Check if the repository where you want to copy Ant files to exists
-    if !(File.exists?(repo_dest_dir))
-      raise I18n.t("automated_tests.dir_not_exist", {:dir => repo_dest_dir})
-    end
-
-    # Go to the directory where the Ant program must be run
-    repo_assignment_dir = File.join(repo_dest_dir, assignment.short_identifier)
-    pwd = FileUtils.pwd
-    FileUtils.cd(repo_assignment_dir)
-
-    # Execute Ant and log output in a temp logfile
-    logfile = "build_log.xml"
-    system ("ant -logger org.apache.tools.ant.DefaultLogger -logfile #{logfile}")
-
-    # Change back to the Rails Working directory
-    FileUtils.cd(pwd)
-
-    # File to store build details
-    filename = I18n.l(Time.zone.now, :format => :ant_date) + ".log"
-    # Status of Ant build
-    status = ''
-
-    # Handle output depending on if the system command:
-    # - executed successfully (ie. Ant returns a BUILD SUCCESSFUL exit(0))
-    # - failed (ie. Ant returns a BUILD FAILED exit(1) possibly due to a compilation issue) or
-    # - errored out for an unknown reason (ie. Ant returns exit != 0 or 1)
-    if ($?.exitstatus == 0)
-      # Build ran succesfully
-      status = 'success'
-    elsif ($?.exitstatus == 1)
-      # Build failed
-      status = 'failed'
-
-      # Go back to the directory where the Ant program must be run
-      pwd = FileUtils.pwd
-      FileUtils.cd(repo_assignment_dir)
-
-      # Re-run in verbose mode and log issues for diagnosing purposes
-      system ("ant -logger org.apache.tools.ant.XmlLogger -logfile #{logfile} -verbose")
-
-      # Change back to the Rails Working directory
-      FileUtils.cd(pwd)
-    else
-      # Otherwise, some other unknown error with Ant has occurred so we simply log
-      # the output for problem diagnosing purposes.
-      status = 'error'
-    end
-
-    # Read in test output logged in build_log.xml
-    file = File.open(File.join(repo_assignment_dir, logfile), "r")
-    data = String.new
-    file.each_line do |line|
-      data += line
-    end
-    file.close
-
-    # If the build was successful, send output to parser(s)
-    if ($?.exitstatus == 0)
-      data = parse_test_output(repo_assignment_dir, assignment, logfile, data)
-    end
-
-    # Create TestResult object
-    # (Build failures and errors will be logged and stored as well for diagnostic purposes)
-    TestResult.create(:filename => filename,
-      :file_content => data,
-      :submission_id => result.submission.id,
-      :status => status,
-      :user_id => @current_user.id)
-  end
-
-  # Send output to parser(s) if any
-  def parse_test_output(repo_assignment_dir, assignment, logfile, data)
-    # Store test output
-    output = data
-
-    # If any test parsers exist, execute Ant's 'parse' target
-    if assignment.test_files.find_by_filetype('parse')
-      # Go to the directory where the Ant program must be run
-      pwd = FileUtils.pwd
-      FileUtils.cd(repo_assignment_dir)
-
-      # Run Ant to parse test output
-      system ("ant parse -logger org.apache.tools.ant.DefaultLogger -logfile #{logfile} -Doutput=#{data}")
-
-      # Change back to the Rails Working directory
-      FileUtils.cd(pwd)
-
-      # Read in test output logged in logfile
-      file = File.open(File.join(repo_assignment_dir, logfile), "r")
-      output = String.new
-      file.each_line do |line|
-        output += line
-      end
-      file.close
-    end
-
-    # Return parsed (or unparsed) test output
-    return output
-  end
 end
