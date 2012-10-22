@@ -1,10 +1,10 @@
 <div class="test_script_options">
 	
-	<%= form.fields_for :test_file do |f| %>
+	<%= form.fields_for :test_file, test_file do |f| %>
 
 		<%= f.label :filename %>
 
-		<%= text_field_tag 'test_script_options_' + f.object_id.to_s, f.object.filename, :readonly => "true" %>
+		<%= text_field_tag 'test_file_' + f.object_id.to_s, f.object.filename, :readonly => "true" %>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 
 		<%= f.label :is_private, I18n.t("automated_tests.private"), :class => "checkbox_label" %>
 	    <%= f.check_box :is_private %>
